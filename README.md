@@ -8,9 +8,8 @@
 
 ## 下载与使用
 
-1. 从 [Releases](../../releases/latest) 下载 `LiteDesktopSwitcher-v1.0.0.zip`。
-2. 解压后运行 `LiteDesktopSwitcher.exe`。
-3. 使用 `Alt+1` 到 `Alt+9` 切换虚拟桌面。
+1. 从 [Releases]下载运行`LiteDesktopSwitcher.exe`
+2. 使用 `Alt+1` 到 `Alt+9` 切换虚拟桌面。
 
 程序只会注册已有桌面对应的快捷键。例如当前有 4 个桌面时，只注册 `Alt+1` 到 `Alt+4`。如果快捷键被其他程序占用，会显示提示并定时重试。
 
