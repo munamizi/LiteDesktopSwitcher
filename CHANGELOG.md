@@ -8,3 +8,4 @@
 - Isolated hotkey handling from COM work to keep rapid input responsive.
 - Added recovery after Explorer restarts, HRESULT checks, retry handling, logging, and a safe self-test mode.
 - Added session-aware desktop detection for RDP and multi-session environments.
+- Fixed newly created or removed desktops not updating the registered `Alt+number` shortcut range until the app restarted.

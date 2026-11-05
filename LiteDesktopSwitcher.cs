@@ -297,20 +297,40 @@ internal sealed class DesktopWorker : IDisposable
 
     private void RefreshCount(DesktopBackend backend, bool forceInit)
     {
-        int count;
-        int hr;
-        if (backend.TryGetCount(forceInit, out count, out hr))
-        {
-            Interlocked.Exchange(ref desktopCount, count);
-            return;
-        }
-
         int registryCount;
         int current;
-        if (VirtualDesktopRegistry.TryRead(out registryCount, out current))
-            Interlocked.Exchange(ref desktopCount, registryCount);
-        else
-            Interlocked.Exchange(ref desktopCount, -1);
+        bool registryAvailable = VirtualDesktopRegistry.TryRead(out registryCount, out current);
+        int previousCount = DesktopCount;
+
+        // 私有 COM 管理器可能长期返回创建/删除桌面前的旧快照。
+        // 注册表拓扑发生变化时必须丢弃旧管理器，否则新增桌面的热键永远不会注册。
+        bool topologyChanged = NeedsTopologyRefresh(previousCount, registryAvailable, registryCount);
+        if (topologyChanged)
+        {
+            Logger.Write("检测到桌面拓扑变化；桌面数 " + previousCount + " -> " + registryCount + "，重建 COM 后端");
+            backend.Reset();
+            forceInit = true;
+        }
+
+        int comCount;
+        int hr;
+        bool comAvailable = backend.TryGetCount(forceInit, out comCount, out hr);
+        int effectiveCount = ResolveDesktopCount(comAvailable, comCount, registryAvailable, registryCount);
+        if (topologyChanged && comAvailable && comCount != registryCount)
+            Logger.Write("COM 重建后桌面数仍与注册表不一致；COM=" + comCount + "，注册表=" + registryCount + "，热键范围采用注册表拓扑");
+        Interlocked.Exchange(ref desktopCount, effectiveCount);
+    }
+
+    internal static bool NeedsTopologyRefresh(int previousCount, bool registryAvailable, int registryCount)
+    {
+        return previousCount > 0 && registryAvailable && registryCount > 0 && previousCount != registryCount;
+    }
+
+    internal static int ResolveDesktopCount(bool comAvailable, int comCount, bool registryAvailable, int registryCount)
+    {
+        if (registryAvailable && registryCount > 0)
+            return registryCount;
+        return comAvailable && comCount > 0 ? comCount : -1;
     }
 
     private void SwitchVerified(DesktopBackend backend, int target)
@@ -932,6 +952,13 @@ internal static class SelfTest
             syntheticIds, secondId.ToByteArray(), firstId.ToByteArray(), true) == 1;
         report.AppendLine("Session 优先规则：" + (sessionPriorityOk ? "正常" : "失败"));
 
+        bool topologyRefreshOk = DesktopWorker.NeedsTopologyRefresh(4, true, 5) &&
+            !DesktopWorker.NeedsTopologyRefresh(5, true, 5) &&
+            !DesktopWorker.NeedsTopologyRefresh(4, false, -1) &&
+            DesktopWorker.ResolveDesktopCount(true, 4, true, 5) == 5 &&
+            DesktopWorker.ResolveDesktopCount(true, 5, false, -1) == 5;
+        report.AppendLine("动态桌面拓扑刷新：" + (topologyRefreshOk ? "正常" : "失败"));
+
         int initHr = Native.CoInitializeEx(IntPtr.Zero, 0x2);
         bool initialized = initHr >= 0;
         int count;
@@ -969,7 +996,7 @@ internal static class SelfTest
         string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "LiteDesktopSwitcher.selftest.txt");
         File.WriteAllText(path, report.ToString(), new UTF8Encoding(true));
         Logger.Write(report.ToString().Replace(Environment.NewLine, " | "));
-        return registryOk && sessionPriorityOk && workerPumpOk && hotKeyOk && inputSize == 40 ? 0 : 1;
+        return registryOk && sessionPriorityOk && topologyRefreshOk && workerPumpOk && hotKeyOk && inputSize == 40 ? 0 : 1;
     }
 }
 
