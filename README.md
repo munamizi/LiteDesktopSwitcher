@@ -6,7 +6,6 @@
 
 <p align="center">
   用 <kbd>Alt</kbd> + <kbd>1</kbd> 到 <kbd>Alt</kbd> + <kbd>9</kbd> 直接切换 Windows 虚拟桌面。<br>
-  <a href="README.en.md">English</a>
 </p>
 
 后台静默运行，没有主窗口和托盘图标，不联网，也不用装 AutoHotkey 或额外的运行库。适用于 64 位 Windows 10 和 Windows 11（依赖系统自带的 .NET Framework 4.x）。
