@@ -3,3 +3,5 @@ LiteDesktopSwitcher.selftest.txt
 *.log
 *.zip
 SHA256SUMS.txt
+/README.en.md
+/CHANGELOG.md
