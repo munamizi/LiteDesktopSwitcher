@@ -10,7 +10,7 @@
 ## 安装
 
 1. 确认系统为 64 位 Windows 10 或 Windows 11，程序直接使用系统自带的 .NET Framework 4.x，无需安装 AutoHotkey 或额外运行库。
-2.  [GitHub Releases](https://github.com/munamizi/LiteDesktopSwitcher/releases/latest) 的 **Assets** 下载 `LiteDesktopSwitcher.exe`，放到常用目录后双击运行。程序在后台静默运行，没有主窗口和托盘图标。
+2. 前往 [GitHub Releases](https://github.com/munamizi/LiteDesktopSwitcher/releases/latest) 的 **Assets** 下载 `LiteDesktopSwitcher.exe`，放到常用目录后双击运行。程序在后台静默运行，没有主窗口和托盘图标。
 
 程序暂未进行数字签名，首次运行时 Windows SmartScreen 可能提示未知发布者，确认来源后放行即可。
 
@@ -19,8 +19,8 @@
 按 `Win+Tab` 可以查看或新建虚拟桌面。`Alt+1` 到 `Alt+9` 对应任务视图中从左到右的桌面顺序，最多支持前 9 个桌面。程序只会注册当前已有桌面对应的快捷键（例如只有 4 个桌面时，只注册 `Alt+1` 到 `Alt+4`）；运行期间新增或删除桌面，热键范围会自动更新，无需重启。
 
 - **开机自启**：按 `Win+R` 输入 `shell:startup`，把 `LiteDesktopSwitcher.exe` 的快捷方式放进打开的文件夹。
-- **退出与更新**：在任务管理器中结束 `LiteDesktopSwitcher.exe`。程序为单实例运行，更新前需先结束旧进程再替换并启动，否则新进程会直接退出。
-- **快捷键冲突**：如果某个 `Alt+数字` 已被其他软件占用，程序会弹窗提示；等对应快捷键释放后，程序会自动重试注册。
+- **退出与更新**：在程序目录运行 `.\LiteDesktopSwitcher.exe --exit`，或在任务管理器中结束 `LiteDesktopSwitcher.exe`。等旧进程退出后，再替换并启动新版本。
+- **快捷键冲突**：如果某个 `Alt+数字` 已被其他软件占用，程序会弹窗提示；程序会每隔 30 秒重试注册。
 
 ### 日志与自检
 
@@ -30,7 +30,7 @@
 %LOCALAPPDATA%\LiteDesktopSwitcher\LiteDesktopSwitcher.log
 ```
 
-也可以带 `--self-test` 参数运行自检，检查桌面枚举、COM 接口和热键注册机制，并在程序同目录生成 `LiteDesktopSwitcher.selftest.txt`，期间不会切换桌面：
+也可以带 `--self-test` 参数运行自检，检查桌面拓扑、注册表监听、COM、热键绑定和焦点接口，并在程序同目录生成 `LiteDesktopSwitcher.selftest.txt`，期间不会切换桌面：
 
 ```powershell
 .\LiteDesktopSwitcher.exe --self-test
@@ -42,9 +42,10 @@
 
 程序拆分为「热键线程 + 桌面切换线程」协作运行：
 
-- **热键线程**：通过原生 Win32 `RegisterHotKey` 监听全局热键，按当前桌面数量动态维护注册范围；收到按键后只投递目标编号，不阻塞输入响应，并在切换期间合并连续请求、保留最后一次目标。
-- **桌面切换线程（`DesktopWorker`）**：优先读取当前会话的注册表状态（兼容 RDP 与多会话）跟踪桌面变化，调用 Windows 虚拟桌面 COM 接口直达目标，支持多版本 Windows 10 / 11 接口布局，并在 Explorer 重启后自动重建连接。
-- **兼容回退（`NativeDesktopFallback`）**：COM 接口重试仍失败时，仅在能确认当前桌面位置的前提下，改用系统快捷键 `Win+Ctrl+←/→` 逐步切换并逐次核对位置。Windows 虚拟桌面 COM 接口并未公开，后续系统大版本更新后可能需要跟进适配。
+- **热键线程**：在仅消息窗口上注册全局热键。桌面数确定后才开始注册，收到按键时把最新目标交给切换线程。热键冲突提示在后台弹出，定时器只在有热键需要重试时运行。
+- **桌面切换线程（`DesktopWorker`）**：监听桌面注册表键的变更，正常空闲时无需轮询。桌面列表变化时更新热键范围，有独立会话列表时按会话读取。收到 Explorer 重启通知后重新挂接监听并重建 COM 连接。
+- **窗口焦点**：确认切到目标桌面后，若系统已把焦点交给那里可用的窗口，就保留现有焦点。否则尝试激活目标桌面最上层的可用窗口。切到空桌面时，若焦点仍留在已隐藏的旧窗口上，尝试把焦点交回任务栏或桌面。
+- **兼容回退（`NativeDesktopFallback`）**：COM 切换失败时，仅在能确认当前桌面位置的前提下，用 `Win+Ctrl+←/→` 逐步切换并核对位置。若系统不支持任何已知的私有 COM 接口，程序会直接使用回退，等 Explorer 重启后再探测。
 
 ## 编译
 
